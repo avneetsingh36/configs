@@ -1,4 +1,7 @@
 -- lua/runner.lua
+-- Run the current file (C/C++/Python) or project (Makefile) in a bottom split.
+-- Bulletproof against: Vim:jobstart(...,{term=true}) requires unmodified buffer
+
 local M = {}
 
 -- Customize C++ flags or set NVIM_CPP_FLAGS in your shell
@@ -47,28 +50,6 @@ local function project_root()
   return vim.fn.expand("%:p:h")
 end
 
-local function ensure_term()
-  if M._buf and vim.api.nvim_buf_is_valid(M._buf) then
-    local wins = vim.fn.win_findbuf(M._buf)
-    if #wins > 0 then
-      vim.api.nvim_set_current_win(wins[1])
-    else
-      vim.cmd("botright 15split")
-      vim.api.nvim_win_set_buf(0, M._buf)
-    end
-    -- clear previous output
-    pcall(vim.api.nvim_buf_set_option, M._buf, "modifiable", true)
-    pcall(vim.api.nvim_buf_set_lines, M._buf, 0, -1, false, {})
-    return M._buf
-  else
-    vim.cmd("botright 15split")
-    M._buf = vim.api.nvim_create_buf(true, false)
-    vim.api.nvim_win_set_buf(0, M._buf)
-    vim.api.nvim_buf_set_option(M._buf, "bufhidden", "hide")
-    return M._buf
-  end
-end
-
 local function build_cmd(args)
   args = args or ""
   local ft    = vim.bo.filetype
@@ -96,6 +77,15 @@ local function build_cmd(args)
   return nil, root
 end
 
+-- Always start a brand-new terminal buffer so it's never "modified" pre-termopen
+local function ensure_term()
+  vim.cmd("botright 15split | enew")
+  local buf = vim.api.nvim_get_current_buf()
+  -- Make the buffer ephemeral so it doesn't linger when hidden
+  pcall(vim.api.nvim_buf_set_option, buf, "bufhidden", "wipe")
+  return buf
+end
+
 -- ----- public API -----------------------------------------------------------
 
 function M.run(args)
@@ -107,9 +97,9 @@ function M.run(args)
     return
   end
 
-  ensure_term()
+  local term_buf = ensure_term()
 
-  -- Guard cwd to avoid E475 when git isn't a repo, etc.
+  -- Guard cwd to avoid issues when not in a repo, etc.
   local safe_cwd = valid_dir(root) and root or vim.fn.expand("%:p:h")
 
   vim.fn.termopen({ "/bin/bash", "-lc", cmd }, {
@@ -120,7 +110,9 @@ function M.run(args)
       end
     end,
   })
-  vim.cmd("startinsert")
+
+  -- Enter terminal mode
+  vim.schedule(function() vim.cmd("startinsert") end)
 end
 
 function M.run_with_args()
