@@ -1,35 +1,34 @@
--- --------------------------------------------
--- Basic Options
--- --------------------------------------------
+-- ~/.config/nvim/init.lua
+-- Minimal, classic‑Vim feel: no mouse, no fancy scrolling, Gruvbox theme via lazy.nvim
 
-vim.g.mapleader = " "            -- ← optional but popular (Space as leader)
-require("runner").setup()        -- ← wire up the run keymaps/commands
+-- ===== Basics =====
+vim.g.mapleader = " "
+vim.g.maplocalleader = " "
 
-vim.opt.number = true
-vim.opt.relativenumber = true
-vim.opt.tabstop = 2
-vim.opt.shiftwidth = 2
-vim.opt.expandtab = true
-vim.opt.autoindent = true
-vim.opt.cindent = true
-vim.opt.smartindent = true
-vim.opt.smarttab = true   -- ✨ added
-vim.opt.breakindent = true -- ✨ added
-vim.opt.termguicolors = true
-vim.opt.clipboard = "unnamedplus"
-vim.opt.cursorline = true
-vim.opt.incsearch = false
-vim.opt.hlsearch = false
-vim.opt.virtualedit = "onemore"
-vim.opt.backspace = { "indent", "eol", "start" }
+-- Classic Vim vibe: disable mouse (no clicking/trackpad scrolling in Neovim)
+vim.o.mouse = ""
 
--- ✨ NEW: Proper enter behavior
-vim.opt.indentkeys:append("0{,0},0),0],0>,0)")
-vim.opt.formatoptions:append("o")
+-- Sensible, minimal UI
+vim.o.number = true            -- show line numbers
+vim.o.relativenumber = false
+vim.o.wrap = false             -- no soft wrapping
+vim.o.termguicolors = true     -- 24-bit colors
 
--- --------------------------------------------
--- Plugin Manager: lazy.nvim bootstrap
--- --------------------------------------------
+-- Indentation: 4 spaces (no hard tabs)
+vim.o.tabstop = 4
+vim.o.shiftwidth = 4
+vim.o.softtabstop = 4
+vim.o.expandtab = true
+vim.o.guicursor = ""           -- solid block cursor (like old-school Vim)
+vim.o.showmode = false         -- avoid '-- INSERT --' (statusline usually shows it)
+
+-- Files
+vim.o.swapfile = false
+vim.o.backup = false
+vim.o.writebackup = false
+vim.o.undofile = true          -- persistent undo
+
+-- ===== lazy.nvim bootstrap =====
 local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not vim.loop.fs_stat(lazypath) then
   vim.fn.system({
@@ -40,118 +39,35 @@ if not vim.loop.fs_stat(lazypath) then
 end
 vim.opt.rtp:prepend(lazypath)
 
--- --------------------------------------------
--- Install Plugins
--- --------------------------------------------
+-- ===== Plugins =====
 require("lazy").setup({
-  { "folke/tokyonight.nvim", lazy = false, priority = 1000 },
   {
-    "nvim-treesitter/nvim-treesitter",
-    build = ":TSUpdate",
+    "ellisonleao/gruvbox.nvim",
+    priority = 1000, -- ensure it loads first
     opts = {
-      ensure_installed = { "cpp", "c", "lua" },  -- add "python" if you want TS highlighting
-      highlight = { enable = true },
-      indent = { enable = true },
+      -- contrast left at default ("hard" | "soft" | "")
+      italic = { strings = false, comments = false, folds = false },
+      transparent_mode = false,
     },
+    config = function(_, opts)
+      require("gruvbox").setup(opts)
+      vim.o.background = "dark"       -- set to "light" if you prefer
+      vim.cmd.colorscheme("gruvbox")
+    end,
   },
-  { "neovim/nvim-lspconfig" },
-  {
-    "hrsh7th/nvim-cmp",
-    dependencies = {
-      "hrsh7th/cmp-nvim-lsp",
-      "L3MON4D3/LuaSnip",
-    },
-  },
-  { "windwp/nvim-autopairs", event = "InsertEnter", config = true },
-  { "nvim-lualine/lualine.nvim" },
-  { "karb94/neoscroll.nvim", config = true },
+}, {
+  ui = { border = "rounded" },
 })
 
--- --------------------------------------------
--- Colorscheme
--- --------------------------------------------
-vim.cmd [[colorscheme tokyonight-storm]]
+-- ===== Minimal keymaps =====
+local map = vim.keymap.set
+map("n", "<leader>w", "<cmd>w<CR>", { desc = "Save" })
+map("n", "<leader>q", "<cmd>q<CR>", { desc = "Quit" })
 
--- --------------------------------------------
--- Lualine Setup (Minimal Bottom Bar)
--- --------------------------------------------
-require('lualine').setup({
-  options = {
-    theme = 'tokyonight',
-    section_separators = '',
-    component_separators = '',
-    icons_enabled = false,
-  },
-})
-
--- --------------------------------------------
--- LSP Setup for C++ (clangd)
--- --------------------------------------------
-local lspconfig = require("lspconfig")
-lspconfig.clangd.setup({
-  init_options = {
-    clangdFileStatus = true,
-    fallbackFlags = { "--std=c++17" },
-  },
-})
-
--- --------------------------------------------
--- Autocompletion Setup
--- --------------------------------------------
-local cmp = require("cmp")
-cmp.setup({
-  completion = {
-    autocomplete = false,
-  },
-  mapping = {
-    ["<Tab>"] = cmp.mapping.select_next_item(),
-    ["<S-Tab>"] = cmp.mapping.select_prev_item(),
-    ["<CR>"] = cmp.mapping.confirm({ select = true }),
-  },
-  sources = {
-    { name = "nvim_lsp" },
-  },
-})
-
--- --------------------------------------------
--- Neoscroll Setup (Smooth Scrolling)
--- --------------------------------------------
-require('neoscroll').setup({
-  easing_function = "quadratic",
-  hide_cursor = true,
-  stop_eof = true,
-})
-
--- --------------------------------------------
--- Keymaps for LSP
--- --------------------------------------------
-vim.keymap.set("n", "gd", vim.lsp.buf.definition, { desc = "Go to definition" })
-vim.keymap.set("n", "K", vim.lsp.buf.hover, { desc = "Hover Documentation" })
-vim.keymap.set("n", "<leader>f", function() vim.lsp.buf.format { async = true } end, { desc = "Format file manually" })
-
--- --------------------------------------------
--- Turn off auto-comment on newline
--- --------------------------------------------
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = "*",
-  callback = function()
-    vim.opt.formatoptions:remove({ "c", "r", "o" })
-  end,
-})
-
--- ✨ Better autoindent always active
-vim.api.nvim_create_autocmd("BufEnter", {
-  pattern = "*",
-  callback = function()
-    vim.bo.autoindent = true
-    vim.bo.smartindent = true
-  end,
-})
-
-vim.api.nvim_create_autocmd("BufWritePre", {
-  pattern = "*.cpp,*.h,*.hpp",
-  callback = function()
-    vim.cmd("silent! %!clang-format")
-  end,
-})
+-- ===== Optional: load your runner if present =====
+-- If you kept lua/runner.lua from earlier, this will attach its mappings (<leader>r / <leader>R)
+pcall(function()
+  local runner = require("runner")
+  if runner and runner.setup then runner.setup() end
+end)
 

@@ -1,5 +1,6 @@
 -- lua/runner.lua
 -- Run the current file (C/C++/Python) or project (Makefile) in a bottom split.
+-- Prefers Homebrew GCC (g++-15/14) over Apple clang++ when available.
 -- Bulletproof against: Vim:jobstart(...,{term=true}) requires unmodified buffer
 
 local M = {}
@@ -50,6 +51,35 @@ local function project_root()
   return vim.fn.expand("%:p:h")
 end
 
+-- Resolve the C/C++ compiler with smart fallbacks.
+-- For C++, we prefer real GCC from Homebrew (g++-15/14/13) over Apple's clang++.
+local function resolve_cxx()
+  -- Explicit override
+  local env = os.getenv("NVIM_CXX")
+  if env and vim.fn.executable(env) == 1 then return env end
+
+  local candidates = {
+    "g++-15", "g++-14", "g++-13", -- Homebrew GCC
+    "g++",                        -- could be clang++ on macOS
+    "c++",                        -- system default
+  }
+  for _, c in ipairs(candidates) do
+    if vim.fn.executable(c) == 1 then return c end
+  end
+  return "c++"
+end
+
+local function resolve_cc()
+  local env = os.getenv("NVIM_CC")
+  if env and vim.fn.executable(env) == 1 then return env end
+
+  local candidates = { "gcc-15", "gcc-14", "gcc-13", "gcc", "cc" }
+  for _, c in ipairs(candidates) do
+    if vim.fn.executable(c) == 1 then return c end
+  end
+  return "cc"
+end
+
 local function build_cmd(args)
   args = args or ""
   local ft    = vim.bo.filetype
@@ -60,15 +90,22 @@ local function build_cmd(args)
 
   -- If there's a Makefile at root, prefer it
   if exists(root .. "/Makefile") then
+    -- Try `make run <args>` first, fall back to `make <args>`
     return "(make run " .. args .. ") || (make " .. args .. ")", root
   end
 
   if ft == "python" then
     return "python3 " .. shq(file) .. (args ~= "" and (" " .. args) or ""), root
 
-  elseif ft == "cpp" or ft == "c" then
-    local cc = (ft == "cpp") and "g++" or "cc"
+  elseif ft == "cpp" then
+    local cc = resolve_cxx()
     local cmd = cc .. " " .. CPP_FLAGS .. " " .. shq(file) .. " -o " .. shq(bin)
+    cmd = cmd .. " && " .. shq(bin) .. (args ~= "" and (" " .. args) or "")
+    return cmd, root
+
+  elseif ft == "c" then
+    local cc = resolve_cc()
+    local cmd = cc .. " -O2 -Wall -Wextra -Wpedantic " .. shq(file) .. " -o " .. shq(bin)
     cmd = cmd .. " && " .. shq(bin) .. (args ~= "" and (" " .. args) or "")
     return cmd, root
   end
