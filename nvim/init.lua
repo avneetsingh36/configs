@@ -1,26 +1,26 @@
 -- ~/.config/nvim/init.lua
--- Minimal, classic‑Vim feel: no mouse, no fancy scrolling, Gruvbox theme via lazy.nvim
+-- Minimal, classic-Vim feel: no mouse, Gruvbox via lazy.nvim
 
 -- ===== Basics =====
 vim.g.mapleader = " "
 vim.g.maplocalleader = " "
 
--- Classic Vim vibe: disable mouse (no clicking/trackpad scrolling in Neovim)
+-- Classic Vim vibe: disable mouse
 vim.o.mouse = ""
 
 -- Sensible, minimal UI
-vim.o.number = true            -- show line numbers
+vim.o.number = true
 vim.o.relativenumber = false
-vim.o.wrap = false             -- no soft wrapping
-vim.o.termguicolors = true     -- 24-bit colors
+vim.o.wrap = false
+vim.o.termguicolors = true
+vim.o.guicursor = ""           -- solid block cursor (old-school Vim)
+vim.o.showmode = false         -- avoid '-- INSERT --' (statusline usually shows it)
 
--- Indentation: 4 spaces (no hard tabs)
+-- Indentation: 2 spaces (no hard tabs)
 vim.o.tabstop = 2
 vim.o.shiftwidth = 2
 vim.o.softtabstop = 2
 vim.o.expandtab = true
-vim.o.guicursor = ""           -- solid block cursor (like old-school Vim)
-vim.o.showmode = false         -- avoid '-- INSERT --' (statusline usually shows it)
 
 -- Files
 vim.o.swapfile = false
@@ -41,11 +41,12 @@ vim.opt.rtp:prepend(lazypath)
 
 -- ===== Plugins =====
 require("lazy").setup({
+  -- Gruvbox (colorscheme)
   {
     "ellisonleao/gruvbox.nvim",
-    priority = 1000, -- ensure it loads first
+    priority = 1000, -- load first so colors apply early
+    lazy = false,
     opts = {
-      -- contrast left at default ("hard" | "soft" | "")
       italic = { strings = false, comments = false, folds = false },
       transparent_mode = false,
     },
@@ -53,6 +54,29 @@ require("lazy").setup({
       require("gruvbox").setup(opts)
       vim.o.background = "dark"       -- set to "light" if you prefer
       vim.cmd.colorscheme("gruvbox")
+    end,
+  },
+
+  -- Treesitter (for better syntax + needed by autopairs check_ts)
+  {
+    "nvim-treesitter/nvim-treesitter",
+    build = ":TSUpdate",
+    opts = {
+      highlight = { enable = true },
+      indent = { enable = true },
+    },
+    config = function(_, opts)
+      require("nvim-treesitter.configs").setup(opts)
+    end,
+  },
+
+  -- Autopairs
+  {
+    "windwp/nvim-autopairs",
+    event = "InsertEnter",
+    opts = { check_ts = true },
+    config = function(_, opts)
+      require("nvim-autopairs").setup(opts)
     end,
   },
 }, {
